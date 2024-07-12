@@ -29,10 +29,11 @@ source(paste0(current_directory,"/libraries.R"), local=TRUE) # Load required pac
 source(paste0(current_directory,"/functions/benefits_functions.R"), local=TRUE) # Benefits calculations
 source(paste0(current_directory,"/functions/expense_functions.R"), local=TRUE) # Expenses calculations
 source(paste0(current_directory,"/functions/BenefitsCalculator_functions.R"), local=TRUE) # Benefits Calculator functions
+source(paste0(current_directory,"/functions/TANF.R"), local=TRUE) # TANF code
+source(paste0(current_directory,"/functions/CCDF.R"), local=TRUE) # CCDF code
 
 # SPECIFY PROJECT----
 PROJECT<-"TEST"
-#PROJECT<-"unit_test"
 
 ## 1. Settings----
 

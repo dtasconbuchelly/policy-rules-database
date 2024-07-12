@@ -1,8 +1,5 @@
-##############################################
-##############################################
-# Benefits Calculator
-##############################################
-##############################################
+
+# Benefits Calculator ----
 # This program provides calculations for:
 # - Minimum Household Budget using United Way ALICE calculated expenses
 # - Public Assistance
@@ -12,11 +9,7 @@ if (!exists("FATES")) FATES=FALSE
 if (!exists("APPLY_FRSP")) APPLY_FRSP=FALSE
 #if (!exists("APPLY_RAP")) APPLY_RAP=FALSE
 
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-#CREATE DATA AND PERFORM INITIAL TRANSFORMATIONS
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
+#CREATE DATA AND PERFORM INITIAL TRANSFORMATIONS ----
 
 # Function to create data from inputs
 function.createData<-function(inputs){
@@ -112,6 +105,10 @@ function.createData<-function(inputs){
 # Produce initial transformations of the inputs to create core variables that are used across the functions
 function.InitialTransformations<-function(data){
 
+  # remove old county fips codes for Connecticut - will work on re-doing PRD so we can remove this in the future
+  table.countypop<-table.countypop %>%
+    filter(!stcountyfips2010  %in% c("9_1", "9_3", "9_5" ,"9_7" ,"9_9", "9_11", "9_13" ,"9_15"))
+  
   data<- data %>%
   left_join(table.countypop,by=c("countyortownName","stateAbbrev")) %>%
   left_join(table.msamap, by=c("stateAbbrev", "countyortownName"))
@@ -147,17 +144,13 @@ function.InitialTransformations<-function(data){
 
 }
 
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-## ASSIGN ALICE EXPENSES
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
+# ASSIGN ALICE EXPENSES----
 BenefitsCalculator.ALICEExpenses<-function(data){
 
   # Variables required to calculate each expense is specified in the function
   # Function will not run unless all inputs are specified
 
-  ## CHILDCARE EXPENSE
+  ## CHILDCARE EXPENSE ----
   #the last argument (schoolagesummercare) defaults to part-time. override to full-time for experiments where we can estimate CCDF copay ourselves for summer time
 
   #person1
@@ -207,16 +200,16 @@ BenefitsCalculator.ALICEExpenses<-function(data){
   data<-data %>%
     mutate(exp.childcare = childcare.exp.person1+childcare.exp.person2+childcare.exp.person3+childcare.exp.person4+childcare.exp.person5+childcare.exp.person6+childcare.exp.person7+childcare.exp.person8+childcare.exp.person9+childcare.exp.person10+childcare.exp.person11+childcare.exp.person12)
 
-  ## TRANSPORTATION EXPENSE
+  ## TRANSPORTATION EXPENSE ----
   data$exp.transportation<-function.transpExp.ALICE(data)
 
-  # FOOD EXPENSE
+  # FOOD EXPENSE ----
   data$exp.basicfood<-function.foodExp.ALICE(data)
 
-  # COST OF SCHOOL MEALS
+  # COST OF SCHOOL MEALS ----
   data$exp.schoolMeals<-function.schoolmealsExp(data)
 
-  # WIC
+  # WIC ----
   data$exp.wic<-function.wicExp(data)
 
   # For CLIFF, aggregate exp.food from fam food cost, WIC value, and school meals value so that food cost is always at least as much as food benefits
@@ -228,10 +221,10 @@ BenefitsCalculator.ALICEExpenses<-function(data){
   data<-data%>%select(-c(exp.basicfood))
   }
 
-  ## TECH EXPENSE
+  ## TECH EXPENSE ----
   data$exp.tech<-function.techExp.ALICE(data)
 
-  ## HOUSING EXPENSE
+  ## HOUSING EXPENSE----
   #### NOTE: Output for the function is two objects: rent and utilities expense
   exp.housing<-function.housingExp.ALICE(data)
   data<-data%>%
@@ -239,7 +232,8 @@ BenefitsCalculator.ALICEExpenses<-function(data){
   data$exp.rentormortgage<-data$exp.rent
   data$exp.housing<-data$exp.rent + data$exp.utilities
 
-  # HEALTHCARE EXPENSE - returns multiple outputs as object, append each element (output) as column to the data
+  ## HEALTHCARE EXPENSE----
+  #- returns multiple outputs as object, append each element (output) as column to the data
   # -- exp.healthcare.employer & premium.employer may be recalculated in the healthcare benefits section
   exp.healthcare<-function.healthcareExp.ALICE(data
                                                 , famsizevar = "famsize")
@@ -250,7 +244,8 @@ BenefitsCalculator.ALICEExpenses<-function(data){
   data$exp.healthcare.SS<-data$ALICE.expense.healthcare.family
 
 
-  # MISCALLENEOUS (OTHER) EXPENSE. This is calculated at the end 10% of all budget items (Food,housing,Health Care,Transportation,Tech,Child care)
+  ## MISCALLENEOUS (OTHER) EXPENSE ----
+  # This is calculated at the end 10% of all budget items (Food,housing,Health Care,Transportation,Tech,Child care)
   data$exp.misc<- round(.1 * rowMaxs(cbind((data$ALICE.expense.healthcare.family+
                                 data$exp.utilities+
                                 data$exp.rentormortgage+
@@ -264,11 +259,7 @@ BenefitsCalculator.ALICEExpenses<-function(data){
 
 }
 
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-## CHILDCARE SUBSIDIES BLOCK
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
+# CHILDCARE SUBSIDIES BLOCK ----
 # This block calculate all childcare-related public benefits
 # We assume that the family chooses the cheapest option:
 # - If available, Pre-K is the best option (NOT YET INCLUDED)
@@ -289,8 +280,7 @@ if(APPLY_CHILDCARE==FALSE | (APPLY_HEADSTART==FALSE & APPLY_CCDF==FALSE & APPLY_
   }else{
 
 
-#---------------------------------------------
-## STEP 1: Calculate Head Start Values
+## Head Start ----
 
 if(APPLY_HEADSTART==FALSE){
 
@@ -571,9 +561,7 @@ data<-data %>%
 } #end Head Start & Early Head Start function
 
 
-##############
-##Step2: PREK
-##############
+# PREK ----
 
     if(APPLY_PREK==FALSE){
 
@@ -770,14 +758,13 @@ data<-data %>%
     data$exp.schoolMeals=data$exp.schoolMeals*data$numkidsinschool
 
 
-
-################################################
 # Calculate overage costs for the whole family
-##################################################
     # We decided against using overage because we don't have data on how common this is.
     # Set to zero for now, bc in future we find data on this
 data$childcare.overage<-0
 
+
+# CCDF ----
 if(APPLY_CCDF==FALSE){
 
     data$value.CCDF<-0}
@@ -789,9 +776,7 @@ if(APPLY_CCDF==FALSE){
                                         , contelig.ccdf = `contelig.ccdf`) # TRUE/FALSE
 
 
-    #-------------------------------------
     # Adjust for take-up
-    #-------------------------------------
     # Is take-up variable specified?
     if(is.null(data$ccdf_takeup)){
       data$ccdf_takeup<-1
@@ -833,11 +818,7 @@ if(APPLY_FATES==FALSE){
 }
 
 
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-## HEALTHCARE SUBSIDIES BLOCK
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
+# HEALTHCARE SUBSIDIES BLOCK ----
 # Health Insurance Costs Minimization Algorithm
 # 1. Medicaid/CHIP is the cheapest option - everyone who is eligible enrolls
 # 2. For those who are not on Medicaid/CHIP - calculate premiums for:
@@ -856,10 +837,7 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
     data$value.medicare<-0
     data$value.aca<-0
 
-    ###############################
-    # Assign employer healthcare if available
-
-
+    # Assign employer healthcare if available----
     data$oop.health.family.ALICE<-function.healthcareExp.ALICE(data
                                                                , famsizevar = "famsize")[,"oop.health.family.ALICE"]
 
@@ -881,9 +859,7 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
       mutate(value.employerhealthcare = exp.healthcare.employer - premium.employer)
     data$value.employerhealthcare[is.na(data$value.employerhealthcare)]<-0
 
-
-    ###############################
-    # Assign out-of-pocket costs
+    # Assign out-of-pocket costs ----
     # Assign costs of Second Lowest Cost Silverplan FOR EACH PERSON
     data$exp.healthcare.healthexchange.person1<-function.healthcareExp.SLCS(data
                                                                             , ageofpersonvar = "agePerson1")
@@ -965,8 +941,7 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
              ,healthcare.source.person12=NA_character_
       )
 
-    #----------------------------------------------
-    # Medicaid
+    # Medicaid ----
 
     # Assign Medicaid Costs
     data$exp.healthcare.medicaid.person1<-function.healthcareExp.Medicaid(data
@@ -1461,10 +1436,7 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
 
       mutate(exp.healthcare.medicaid=rowSums(cbind(exp.healthcare.medicaid.adult,exp.healthcare.medicaid.child), na.rm = TRUE))
 
-
-    ######################
-    # OPTIMIZATION STEP 1: Those who are eligible for Medicaid take it
-    ######################
+    # OPTIMIZATION STEP 1: Those who are eligible for Medicaid take it ----
     data<-data %>%
       mutate(healthcare.source.person1 = case_when(!is.na(value.medicaid.adult.person1) | !is.na(value.medicaid.child.person1) ~ "Medicaid/CHIP", TRUE ~ NA_character_)
              ,healthcare.source.person2 = case_when(!is.na(value.medicaid.adult.person2) | !is.na(value.medicaid.child.person2) ~ "Medicaid/CHIP", TRUE ~ NA_character_)
@@ -1496,9 +1468,7 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
            )
 
 
-    #-------------------------------------------------------
-    ## ACA Subsidy
-
+    ## ACA Subsidy ----
 
     # Assign costs of Second Lowest Cost Silverplan FOR EACH PERSON
     data$exp.healthcare.healthexchange.person1<-function.healthcareExp.SLCS(data
@@ -1573,11 +1543,7 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
     data$value.aca<-rowMaxs(cbind(data$exp.healthcare.healthexchange-data$premium.aca,0))
     data$value.aca[is.na(data$value.aca)]<-0
 
-
-
-
-    #-------------------------------------------------------
-    ## Employer Sponsored Plan
+    ## Employer Sponsored Plan ----
     # Single coverage
     # Family coverage
     # Employee-plus-one coverage
@@ -1601,12 +1567,14 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
     # How many family members (potentially) subscribe for the employer plan? Everyone who is not on Medicaid
     data$famsize.foremployerhealthcare<-data$famsize-data$famsize.onMedicaid
 
+    # create copy of famsize variable to use in the exp function below bc we need actual famsize variable within the expense calculation for ALICE but need famsize.foremployerhealthcare for PRD
+    data$famsize2<-data$famsize
     # Total costs of employer health insurance
     data$exp.healthcare.employer<-function.healthcareExp.ALICE(data
-                                                               , famsizevar = "famsize")[,2]
+                                                               , famsizevar = "famsize2")[,2]
     # Total costs of employee premium from the employer plan health insurance
     data$premium.employer<-function.healthcareExp.ALICE(data
-                                                        , famsizevar = "famsize")[,3] # employee premium
+                                                        , famsizevar = "famsize2")[,3] # employee premium
 
     data$exp.healthcare.SS <- data$ALICE.expense.healthcare.family
     data$exp.healthcare.employer <- NULL
@@ -1627,9 +1595,7 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
       mutate(value.employerhealthcare = exp.healthcare.employer - premium.employer)
     data$value.employerhealthcare[is.na(data$value.employerhealthcare)]<-0
 
-    ######################
-    # OPTIMIZATION STEP 2: Compare total costs of employer plan and health exchange plan
-    ######################
+    # OPTIMIZATION STEP 2: Compare total costs of employer plan and health exchange plan----
 
     # Determine what healhcare sources are used
     data<-data %>%
@@ -1701,11 +1667,8 @@ BenefitsCalculator.Healthcare<-function(data, APPLY_HEALTHCARE=FALSE, APPLY_MEDI
 
 }
 
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-## OTHER Benefits (liheap, tanf, will add ssi and ssdi here when finished)
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
+# OTHER Benefits ----
+# (liheap, tanf, will add ssi and ssdi here when finished)
 BenefitsCalculator.OtherBenefits<-function(data, APPLY_TANF, APPLY_SSDI, APPLY_SSI){
 
 
@@ -1739,9 +1702,8 @@ BenefitsCalculator.OtherBenefits<-function(data, APPLY_TANF, APPLY_SSDI, APPLY_S
 
     data <- data[order(data$index), ]
     data$index <- NULL
-    #-------------------------------------
+    
     # Adjust for take-up
-    #-------------------------------------
     # Is take-up variable specified?
     if(is.null(data$tanf_takeup)){
       data$tanf_takeup<-1
@@ -1808,12 +1770,9 @@ BenefitsCalculator.OtherBenefits<-function(data, APPLY_TANF, APPLY_SSDI, APPLY_S
 } #end other benefits function
 
 
+# FOOD and HOUSING----
+# (Housing Vouchers (Section 8, RAP), SNAP, SLP, WIC)
 
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-## FOOD and Housing (Housing Vouchers (Section 8, RAP), SNAP, SLP, WIC)
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
 BenefitsCalculator.FoodandHousing<-function(data, APPLY_SECTION8=FALSE, APPLY_LIHEAP=FALSE, APPLY_SNAP=FALSE, APPLY_SLP=FALSE, APPLY_WIC=FALSE, APPLY_RAP=FALSE, APPLY_FRSP=FALSE, frsp_share = 0.3){
 
 #some programs rely on liheap, but liheap is run last
@@ -1831,9 +1790,8 @@ BenefitsCalculator.FoodandHousing<-function(data, APPLY_SECTION8=FALSE, APPLY_LI
 
     #data<-data[!is.na(data$value.section8),]
     data$value.section8[is.na(data$value.section8)] <- 0
-    #-------------------------------------
+
     # Adjust for take-up
-    #-------------------------------------
     # Is take-up variable specified?
     if(is.null(data$section8_takeup)){
       data$section8_takeup<-1
@@ -1857,9 +1815,8 @@ BenefitsCalculator.FoodandHousing<-function(data, APPLY_SECTION8=FALSE, APPLY_LI
     data$value.section8<-function.RAPBenefit(data=data)
 
     data<-data[!is.na(data$value.section8),]
-    #-------------------------------------
+    
     # Adjust for take-up
-    #-------------------------------------
     # Is take-up variable specified?
     if(is.null(data$section8_takeup)){
       data$section8_takeup<-1
@@ -1881,29 +1838,28 @@ BenefitsCalculator.FoodandHousing<-function(data, APPLY_SECTION8=FALSE, APPLY_LI
   }else { if(APPLY_SECTION8==FALSE & APPLY_RAP==FALSE & APPLY_FRSP==TRUE){
 
     data$value.section8<-function.FRSPBenefit(data
-                                              , shareOfRent = frsp_share)  # User input - varies from 40 to 60%
-
-    #-------------------------------------
+                                              , shareOfRent = frsp_share
+                                              , CareerMapIndicator1 = CareerMAP)  # User input - varies from 40 to 60%
+    
     # Adjust for take-up
-    #-------------------------------------
     # Is take-up variable specified?
     if(is.null(data$section8_takeup)){
       data$section8_takeup<-1
     }
     data$value.section8[data$section8_takeup==0]<-0
-
+    
     data$share.rent<-(data$exp.rentormortgage)/(data$exp.rentormortgage+data$exp.utilities) # share of rent in total housing expense
     data$share.rent[is.na(data$share.rent)]<-0 # in case the denominator is zero, just set the whole share to 0
-
+    
     data$share.utilities<-(data$exp.utilities)/(data$exp.rentormortgage+data$exp.utilities)  # share of utilities in total housing expense
     data$share.utilities[is.na(data$share.utilities)]<-0 # in case the denominator is zero, just set the whole share to 0
-
+    
     # Allocate Section 8 voucher to net rent & net utilities reduction in accordance with the share of utilities and rent from above
     data$netexp.rentormortgage<-rowMaxs(cbind(data$exp.rentormortgage-data$share.rent*data$value.section8,0))
     data$netexp.utilities<-rowMaxs(cbind(data$exp.utilities-data$share.utilities*data$value.section8,0))
-
+    
     data$netexp.housing<-data$netexp.rentormortgage+data$netexp.utilities
-
+    
   }
 
   }}}
@@ -1915,9 +1871,7 @@ BenefitsCalculator.FoodandHousing<-function(data, APPLY_SECTION8=FALSE, APPLY_LI
 
     data$value.snap<-rowMins(cbind(function.snapBenefit(data), data$exp.food)) # Benefit cannot be greater than expense
 
-    #-------------------------------------
     # Adjust for take-up
-    #-------------------------------------
     # Is take-up variable specified?
     if(is.null(data$snap_takeup)){
       data$snap_takeup<-1
@@ -1969,18 +1923,14 @@ BenefitsCalculator.FoodandHousing<-function(data, APPLY_SECTION8=FALSE, APPLY_LI
 }
 
 
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-## TAXES AND TAX CREDITS
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
+# TAXES AND TAX CREDITS ----
+
 # Variables required to calculate each tax and tax credit are specified in the function
 # Function will not run unless all inputs are specified
 BenefitsCalculator.TaxesandTaxCredits<-function(data, APPLY_EITC=FALSE, APPLY_CTC=FALSE, APPLY_CDCTC=FALSE, APPLY_TAXES=TRUE){ #DEFAULT TAXES TO TRUE
 
 
-#-------------------------------
-# Federal Taxes and Tax Credits
+# Federal Taxes and Tax Credits ----
 
   # fed INCOME TAXES
   if(APPLY_TAXES==FALSE){
@@ -1992,8 +1942,7 @@ BenefitsCalculator.TaxesandTaxCredits<-function(data, APPLY_EITC=FALSE, APPLY_CT
     data$tax.income.local_tm12<-0
   }else if(APPLY_TAXES==TRUE){
 
-#--------------------------------------
-# Current Year Taxes (for take-home pay)
+# Current Year Taxes (for take-home pay) 
 #Federal Income Tax
 
     data$TaxableamtofSSDI<-0
@@ -2010,9 +1959,7 @@ data$tax.FICA<-function.ficatax(data
 data$tax.federal<-data$tax.income.fed # Input into the Federal Tax Credits
 
 
-#--------------------------------------
 # Past Year Taxes (for Tax Credits)
-#--------------------------------------
 
 #Federal Income Tax
 data$tax.income.fed_tm12<-function.fedinctax(data
@@ -2066,18 +2013,13 @@ if(APPLY_CDCTC==FALSE){
 }
 
 data$value.taxcredits.fed<-data$value.eitc.fed+data$value.ctc.fed+data$value.cdctc.fed
-
-
-#------------------------------------------
-# State & Local Taxes and State Tax Credits
-#------------------------------------------
+# State & Local Taxes and State Tax Credits ----
 
 if(APPLY_TAXES==FALSE){
   data$tax.income.state<-0
   data$tax.income.local<-0
  }else if(APPLY_TAXES==TRUE){
 
-#---------------------------------------------------
 # Current Year State Income Tax (for take-home pay)
 
 #Current year - state
@@ -2087,15 +2029,12 @@ data$tax.income.state<-function.stateinctax(data
                                             , fedtaxcreditsvar = "value.taxcredits.fed")
 data$tax.income.state[is.na(data$tax.income.state)]<-0
 
-#-----------------------------------------------------
 # Current Year- local
 
 data$tax.income.local<-function.localinctax(data
                                             ,incomevar = "income")
 data$tax.income.local[is.na(data$tax.income.local)]<-0
 
-
-#---------------------------------------------------
 # Past Year
 
 #past year - state
@@ -2131,16 +2070,19 @@ data$value.eitc.state[is.na(data$value.eitc.state)]<-0
 
 }
 
+# ER 3/28/24: temporarily removing state ctc from the PRD
 # State CTC
 if(APPLY_CTC==FALSE){
   data$value.ctc.state<-0
 }else if(APPLY_CTC==TRUE){
 
   # State CTC
-  data$value.ctc.state<-function.statectc(data
-                                          , incomevar = "income_tm12"
-                                          , stateincometaxvar = "tax.income.state_tm12"
-                                          , federalctcvar = "value.ctc.fed")
+  # data$value.ctc.state<-function.statectc(data
+  #                                         , incomevar = "income_tm12"
+  #                                         , stateincometaxvar = "tax.income.state_tm12"
+  #                                         , federalctcvar = "value.ctc.fed")
+  
+  data$value.ctc.state<-0
   data$value.ctc.state[is.na(data$value.ctc.state)]<-0
 
 }
@@ -2159,9 +2101,7 @@ if(APPLY_CDCTC==FALSE){
 }
 
 
-#----------------------------------------
 # Adjust for take-up
-#----------------------------------------
 # Is take-up variables specified?
 if(is.null(data$eitc_takeup)){
   data$eitc_takeup<-1
@@ -2191,13 +2131,7 @@ return(data)
 
 }
 
-
-
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
-## CREATE VARIABLES FOR PLOTTING
-#------------------------------------------------------------------------
-#------------------------------------------------------------------------
+# CREATE VARIABLES FOR PLOTTING ----
 function.createVars<-function(data){
 
 data<-data %>%
@@ -2238,7 +2172,7 @@ return(data)
 }
 
 
-# For the CLIFF planner
+# For the CLIFF planner ----
 function.createVars.CLIFF<-function(data){
 
   data<-data %>%

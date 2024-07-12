@@ -1,14 +1,9 @@
 
-
 #---------------------------------------------------------------------------------------------------
 # ALICE DATA is used for all expenses excluding Medicaid and ACA expenses which are provided by FRBA
 #---------------------------------------------------------------------------------------------------
 
-###################################################
-###################################################
-# Childcare Expenses
-###################################################
-###################################################
+# Childcare Expenses ----
 
 #note: each expense is inflated per the ALICE index (update every year) & subtract typical inflation to make consistent with wage data
 #the 0.022 number comes from "ALICE_essentialindex final" please update as there are new data released!!
@@ -145,13 +140,13 @@ function.childcareExp.ALICE<-function(data
                                         ,agePerson12 %in% c(5:12) ~ exp.childcareSchoolAge
                                         ,TRUE ~ 0))
   
-  #inflate cost to current Year
+  #inflate cost to current Year - ALICE  
   data$ALICE.exp.childcare<-data$ALICE.exp.childcare*(1+(.021-parameters.defaults$inflationrate[1]))^(data$Year-data$yearofdata)
   data$exp.childcare<-data$exp.childcare*(1+(parameters.defaults$inflationrate[1]))^(data$Year-data$yearofdata)
   
   data$ALICE.exp.childcare<-round(data$ALICE.exp.childcare,0)
   
-  #inflate cost to current Year ROUND VALUES
+  #inflate cost to current - PRD calls for childcare cost for each person
   data$person1childcare<-round(data$person1childcare*(1+(parameters.defaults$inflationrate[1]))^(data$ruleYear-data$yearofdata),0)
   data$person2childcare<-round(data$person2childcare*(1+(parameters.defaults$inflationrate[1]))^(data$ruleYear-data$yearofdata),0)
   data$person3childcare<-round(data$person3childcare*(1+(parameters.defaults$inflationrate[1]))^(data$ruleYear-data$yearofdata),0)
@@ -176,11 +171,7 @@ function.childcareExp.ALICE<-function(data
 }
 
 
-###################################################
-###################################################
-# Transportation Expenses
-###################################################
-###################################################
+# Transportation Expenses ----
 
 function.transpExp.ALICE<-function(data){
   
@@ -263,11 +254,7 @@ function.transpExp.ALICE<-function(data){
   return(data$expense.transportation)
 }
 
-###################################################
-###################################################
-# Tech Expenses
-###################################################
-###################################################
+# Tech Expenses ----
 
 function.techExp.ALICE<-function(data){
 
@@ -308,7 +295,7 @@ function.techExp.ALICE<-function(data){
  
   #formula for survival
   if(budget.ALICE=="survival"|budget.ALICE=="survivalforcliff"){
-    data$expense.tech<-data$expense.smartphone
+    data$expense.tech<-(data$expense.smartphone + data$expense.broadband)
   }
   
   #formula for stability
@@ -332,15 +319,9 @@ function.techExp.ALICE<-function(data){
   return(data$expense.tech)
 }
 
-###################################################
-###################################################
-# Food Expenses
-###################################################
-###################################################
+# Food Expenses ----
 
-#----------------------------------------------------------------------
 # USDA with feeding America variation - ALICE
-#----------------------------------------------------------------------
 function.foodExp.ALICE<-function(data){
   
   # Add the most recent expenses to the current year if we do not have most up-to-date expenses
@@ -374,6 +355,8 @@ function.foodExp.ALICE<-function(data){
       select(-c(yeardiff, minyeardiff))
   }  # Attach copied future, historical, and missing expense data
   exp.foodData.USDA$Year<-exp.foodData.USDA$yearofdata
+  exp.foodData.USDA<-subset(exp.foodData.USDA,!is.na(FIPS))
+  
   if(length(futureYrs)>0){exp.foodData.USDA<-exp.foodData.USDA%>%rbind(expand)}
   if(length(nonFutureYrs)>0){exp.foodData.USDA<-exp.foodData.USDA%>%rbind(expandPastMiss2)}
   
@@ -674,12 +657,14 @@ function.foodExp.ALICE<-function(data){
                                     famsize==11~(Thrifty_reference_family/4)*0.9,
                                     famsize==12~(Thrifty_reference_family/4)*0.9))   
   }
-  if (budget.ALICE=="stability" | budget.ALICE=="survival"){
+  if (budget.ALICE=="survival"){
   data$expense.food<-rowSums(cbind(data$food1,data$food2, data$food3, data$food4, data$food5, data$food6, data$food7, data$food8, data$food9, data$food10, data$food11, data$food12), na.rm = TRUE)
   }else if(budget.ALICE=="survivalforcliff"){
   data$expense.food<-data$expense.food*data$famsize
   data$expense.food<-data$expense.food*12
   data$expense.food<-data$expense.food*(1+(parameters.defaults$inflationrate[1]))^(data$ruleYear-data$yearofdata) 
+  }else if(budget.ALICE=="stability"){ 
+  data$expense.food<-rowSums(cbind(data$food1,data$food2, data$food3, data$food4, data$food5, data$food6, data$food7, data$food8, data$food9, data$food10, data$food11, data$food12), na.rm = TRUE)+ data$Foodadd_stability
   }
   data$expense.food<-round(data$expense.food,0)
   
@@ -689,9 +674,8 @@ function.foodExp.ALICE<-function(data){
   return(data$expense.food)
 }
 
-################
-##School Meals##
-################
+
+# Cost of School Meals ----
 
 function.schoolmealsExp<-function(data){
   
@@ -756,9 +740,7 @@ function.schoolmealsExp<-function(data){
   return(data$expense.schoolmeals)
 }
 
-################
-##WIC##
-################
+# Cost of WIC ----
 
 function.wicExp<-function(data){
   
@@ -789,15 +771,16 @@ function.wicExp<-function(data){
   return(data$expense.WIC)
 }
 
-###################################################
-###################################################
-# Healthcare Expenses
-###################################################
-###################################################
+# Healthcare Expenses ----
 
+## Employer sponsored cost ----
 #in BenefitsCalculator_functions, the cost of employer sponsored health care coverage is determined based on the famsize.
 #when soemone in the family is on medicaid (and in the future, if they are on medicare, their famsize for matching here will be reduced)
-function.healthcareExp.ALICE<-function(data, famsizevar){
+function.healthcareExp.ALICE<-function(data
+                                       , famsizevar){
+  # For PRD, famsize may change depending on medicaid status as mentioned above
+  data<-data%>%
+    rename(famsizeToUse = famsizevar)
   
   # Add the most recent expenses to the current year if we do not have most up-to-date expenses
   years<-unique(data$Year) # years in data set
@@ -846,10 +829,10 @@ function.healthcareExp.ALICE<-function(data, famsizevar){
 
   data <- data %>% 
     #total cost of health insurance (employer paid + employee paid premium)
-    mutate(exp.healthcare.employer= case_when(famsize==1 ~ Single_employee+Single_employer, famsize==2 ~ Plusone_employee+ Plusone_employer, famsize>=3 ~Family_employee+Family_employer, TRUE~NA_real_)) %>% 
+    mutate(exp.healthcare.employer= case_when(famsizeToUse==1 ~ Single_employee+Single_employer, famsizeToUse==2 ~ Plusone_employee+ Plusone_employer, famsizeToUse>=3 ~Family_employee+Family_employer, TRUE~NA_real_)) %>% 
     mutate(exp.healthcare.employer.ALICE =case_when(famsize_forALICE==1 ~ Single_employee+Single_employer, famsize_forALICE==2 ~ Plusone_employee+ Plusone_employer, famsize_forALICE>=3 ~ Family_employee + Family_employer, TRUE~NA_real_)) %>% 
     #premium paid by the employee - low-income households are more likely to have someone in fair or poor health. The Household Survival Budget includes a poor-health multiplier, a conservative 30% increase to out-of-pocket costs.
-    mutate(premium.employer= case_when(famsize==1 ~ Single_employee, famsize==2 ~ Plusone_employee, famsize>=3 ~Family_employee, TRUE~NA_real_)*1.3) %>% 
+    mutate(premium.employer= case_when(famsizeToUse==1 ~ Single_employee, famsizeToUse==2 ~ Plusone_employee, famsizeToUse>=3 ~Family_employee, TRUE~NA_real_)*1) %>% 
     mutate(premium.employer.ALICE =case_when(famsize_forALICE==1 ~ Single_employee, famsize_forALICE==2 ~ Plusone_employee, famsize_forALICE>=3 ~ Family_employee,famsize_forALICE==0 ~ 0, TRUE~NA_real_)) %>% 
     #premium.medicare
     mutate(premium.medicare= annual_premium_partB)  %>% 
@@ -862,13 +845,13 @@ function.healthcareExp.ALICE<-function(data, famsizevar){
   if(budget.ALICE=="survival" | budget.ALICE=="survivalforcliff"){
     data<-data %>% 
       mutate(oop.health.family.ALICE=TotalU65*(annualOOP_survival)+Total65plus*(annualOOP_partB+annualOOP.chronicconditions+annual_premium_partB)) %>% 
-      mutate(ALICE.expense.healthcare.family=premium.employer.ALICE*1.3+oop.health.family.ALICE)
+      mutate(ALICE.expense.healthcare.family=premium.employer.ALICE*1+oop.health.family.ALICE)
   } 
   
   if(budget.ALICE=="stability"){
     data<-data %>% 
-      mutate(oop.health.family.ALICE<-TotalU65*(annualOOP_stability)+Total65plus*(annualOOP_partB+annualOOP.chronicconditions+annual_premium_partB)) %>% 
-      mutate(ALICE.expense.healthcare.family<-premium.employer.ALICE+oop.health.family.ALICE)
+      mutate(oop.health.family.ALICE=TotalU65*(annualOOP_stability)+Total65plus*(annualOOP_partB+annualOOP.chronicconditions+annual_premium_partB)) %>% 
+      mutate(ALICE.expense.healthcare.family=premium.employer.ALICE+oop.health.family.ALICE)
   }
   
   #maybe add something here for "survivalforcliff", maybe not
@@ -938,9 +921,8 @@ function.healthcareExp.ALICE<-function(data, famsizevar){
 }
 
 
-#----------------------------------------------------------------------
-# Medicaid Costs - calculated as a state government spending per enrollee
-#----------------------------------------------------------------------
+## Medicaid Costs ----- 
+# calculated as a state government spending per enrollee
 function.healthcareExp.Medicaid<-function(data
                                           , ageofpersonvar){
   
@@ -966,9 +948,8 @@ function.healthcareExp.Medicaid<-function(data
   return(data$expense.medicaid)
 }
 
-#----------------------------------------------------------------------
-# ACA Costs - costs of the Second Lowest Costs Silverplan
-#----------------------------------------------------------------------
+## ACA Costs ----
+#- costs of the Second Lowest Costs Silverplan
 function.healthcareExp.SLCS<-function(data
                                       , ageofpersonvar){
   
@@ -1041,11 +1022,7 @@ function.healthcareExp.SLCS<-function(data
 }
 
 
-###################################################
-###################################################
-# Housing Expenses
-###################################################
-###################################################
+# Housing Expenses ----
 
 function.housingExp.ALICE<-function(data){
   
